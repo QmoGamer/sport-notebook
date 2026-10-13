@@ -1,0 +1,24 @@
+# Nuxt 建置輸出
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# 套件
+node_modules
+
+# 紀錄檔
+logs
+*.log
+
+# 系統檔
+.DS_Store
+.fleet
+.idea
+
+# 環境變數（Firebase 設定）
+.env
+.env.*
+!.env.example
