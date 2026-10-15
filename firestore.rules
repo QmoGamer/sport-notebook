@@ -22,7 +22,7 @@ service cloud.firestore {
         allow delete: if isOwner(uid) && categoryId != 'other';
       }
 
-      match /logs/{date} {
+      match /logs/{logId} {
         allow read, write: if isOwner(uid);
       }
     }

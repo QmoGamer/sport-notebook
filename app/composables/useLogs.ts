@@ -13,16 +13,25 @@ export function useLogs() {
     return uid
   }
 
-  const logRef = (uid: string, key: string) => doc($fbDb, 'users', uid, 'logs', key)
+  const logsCollection = (uid: string) => collection($fbDb, 'users', uid, 'logs')
+  const logRef = (uid: string, id: string) => doc($fbDb, 'users', uid, 'logs', id)
 
   function startSync(uid: string): Unsubscribe {
     return onSnapshot(
-      collection($fbDb, 'users', uid, 'logs'),
+      logsCollection(uid),
       (snapshot) => {
         const next: Record<string, LogEntry> = {}
         for (const d of snapshot.docs) {
-          const data = d.data()
-          next[d.id] = { date: data.date, sportId: data.sportId, categoryId: data.categoryId, note: data.note ?? '' }
+          // 剛寫入、還沒拿到伺服器時間的文件用本地估計值，排序不會閃動
+          const data = d.data({ serverTimestamps: 'estimate' })
+          next[d.id] = {
+            id: d.id,
+            date: data.date,
+            sportId: data.sportId,
+            categoryId: data.categoryId,
+            note: data.note ?? '',
+            createdAt: data.createdAt?.toMillis?.() ?? 0
+          }
         }
         logs.value = next
         ready.value = true
@@ -36,36 +45,43 @@ export function useLogs() {
     ready.value = false
   }
 
-  function logFor(key: string): LogEntry | null {
-    return logs.value[key] ?? null
+  /** 某一天的紀錄，依建立先後排序 */
+  function logsOn(key: string): LogEntry[] {
+    return Object.values(logs.value)
+      .filter(log => log.date === key)
+      .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
   }
 
   function countUsing(field: 'sportId' | 'categoryId', id: string): number {
     return Object.values(logs.value).filter(log => log[field] === id).length
   }
 
-  async function saveLog(key: string, input: LogInput) {
+  async function addLog(key: string, input: LogInput) {
     const uid = requireUid()
-    const note = input.note.trim()
-    const { sportId, categoryId } = input
-    if (logFor(key)) {
-      await updateDoc(logRef(uid, key), { sportId, categoryId, note, updatedAt: serverTimestamp() })
-      return
-    }
-    await setDoc(logRef(uid, key), {
+    await setDoc(doc(logsCollection(uid)), {
       date: key,
-      sportId,
-      categoryId,
-      note,
+      sportId: input.sportId,
+      categoryId: input.categoryId,
+      note: input.note.trim(),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
   }
 
-  async function removeLog(key: string) {
+  async function updateLog(id: string, input: LogInput) {
     const uid = requireUid()
-    await deleteDoc(logRef(uid, key))
+    await updateDoc(logRef(uid, id), {
+      sportId: input.sportId,
+      categoryId: input.categoryId,
+      note: input.note.trim(),
+      updatedAt: serverTimestamp()
+    })
   }
 
-  return { logs, ready, startSync, reset, logFor, countUsing, saveLog, removeLog }
+  async function removeLog(id: string) {
+    const uid = requireUid()
+    await deleteDoc(logRef(uid, id))
+  }
+
+  return { logs, ready, startSync, reset, logsOn, countUsing, addLog, updateLog, removeLog }
 }

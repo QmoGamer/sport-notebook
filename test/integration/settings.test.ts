@@ -89,8 +89,8 @@ describe('設定頁', () => {
 
   it('刪除使用中的運動：確認後紀錄改為「其它」', async () => {
     const { sportId, categoryId } = catalogIds()
+    const first = seedLog(uid, '2026-10-01', { sportId, categoryId })
     seedLog(uid, '2026-10-01', { sportId, categoryId })
-    seedLog(uid, '2026-10-02', { sportId, categoryId })
     const wrapper = await mountSettings()
 
     await buttonIn(rowOf(wrapper, 0, '桌球'), '刪除').trigger('click')
@@ -98,7 +98,7 @@ describe('設定頁', () => {
     expect(request.title).toBe('刪除運動')
     expect(request.message).toBe('確定要刪除「桌球」嗎？有 2 筆紀錄會改為「其它」。')
     expect(readDoc(`users/${uid}/sports/${sportId}`)).toBeUndefined()
-    expect(readDoc(`users/${uid}/logs/2026-10-01`)?.sportId).toBe('other')
+    expect(readDoc(`users/${uid}/logs/${first}`)?.sportId).toBe('other')
     expect(toastMessages()).toContain('已刪除「桌球」')
   })
 

@@ -85,11 +85,11 @@ describe('登入狀態與資料同步', () => {
   it('換另一個帳號登入時看不到前一個帳號的紀錄', async () => {
     const first = await registerAs('小明', 'ming@example.com')
     seedLog(first.uid, '2026-10-01', { ...catalogIds() })
-    await vi.waitFor(() => expect(useLogs().logFor('2026-10-01')).not.toBeNull())
+    await vi.waitFor(() => expect(useLogs().logsOn('2026-10-01')).toHaveLength(1))
 
     await useAuth().logout()
     await registerAs('阿華', 'hua@example.com')
-    expect(useLogs().logFor('2026-10-01')).toBeNull()
+    expect(useLogs().logsOn('2026-10-01')).toEqual([])
     expect(useCatalog().sports.value.map(s => s.name)).toEqual(['桌球', '其它'])
   })
 })

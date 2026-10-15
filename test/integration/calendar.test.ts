@@ -54,6 +54,29 @@ describe('月曆', () => {
     expect(cell.find('[style]').attributes('style')).toMatch(/#10b981|16, 185, 129/)
   })
 
+  it('同一天多筆：最多顯示 2 個運動標籤，其餘顯示 +N，且不顯示類型與筆記', async () => {
+    const user = await registerAs()
+    const { sportId, categoryId } = catalogIds()
+    seedLog(user.uid, '2026-10-12', { sportId, categoryId, note: '早上' })
+    seedLog(user.uid, '2026-10-12', { sportId: 'other', categoryId, note: '中午' })
+    seedLog(user.uid, '2026-10-12', { sportId, categoryId, note: '晚上' })
+    seedLog(user.uid, '2026-10-12', { sportId, categoryId })
+    seedLog(user.uid, '2026-10-13', { sportId, categoryId })
+    seedLog(user.uid, '2026-10-13', { sportId: 'other', categoryId })
+    const wrapper = await mountCalendar()
+    await flushPromises()
+
+    const busy = dayCell(wrapper, 12)
+    expect(busy.findAll('[style]').map(t => t.text())).toEqual(['桌球', '其它'])
+    expect(busy.text()).toContain('+2')
+    expect(busy.text()).not.toContain('練習')
+    expect(busy.text()).not.toContain('早上')
+
+    const two = dayCell(wrapper, 13)
+    expect(two.findAll('[style]')).toHaveLength(2)
+    expect(two.text()).not.toContain('+')
+  })
+
   it('掛載後才新增的紀錄與運動改名都會即時顯示', async () => {
     const user = await registerAs()
     const { sportId, categoryId } = catalogIds()

@@ -2,8 +2,11 @@
 definePageMeta({ middleware: 'auth' })
 useHead({ title: '月曆 · 運動筆記本' })
 
-const { logFor } = useLogs()
+const { logsOn } = useLogs()
 const { resolveSport, resolveCategory } = useCatalog()
+
+/** 每格最多顯示幾個運動標籤 */
+const MAX_VISIBLE = 2
 
 const today = new Date()
 const todayKey = formatDateKey(today)
@@ -25,12 +28,14 @@ function goToday() {
 }
 
 const cells = computed(() => buildMonthGrid(viewYear.value, viewMonth.value).map((cell) => {
-  const log = logFor(cell.key)
+  const logs = logsOn(cell.key)
+  const only = logs.length === 1 ? logs[0]! : null
   return {
     ...cell,
-    log,
-    sport: log ? resolveSport(log.sportId) : null,
-    category: log ? resolveCategory(log.categoryId) : null,
+    tags: logs.slice(0, MAX_VISIBLE).map(log => ({ id: log.id, sport: resolveSport(log.sportId) })),
+    hiddenCount: Math.max(logs.length - MAX_VISIBLE, 0),
+    // 只有一筆時才顯示類型與筆記，避免格子太擠
+    only: only ? { category: resolveCategory(only.categoryId), note: only.note } : null,
     disabled: !cell.inCurrentMonth
   }
 }))
@@ -95,15 +100,20 @@ function dayNumberClass(cell: { inCurrentMonth: boolean; key: string }) {
           >
             {{ cell.day }}
           </span>
-          <template v-if="cell.inCurrentMonth && cell.log && cell.sport">
+          <template v-if="cell.inCurrentMonth && cell.tags.length">
             <div
+              v-for="tag in cell.tags"
+              :key="tag.id"
               class="mt-1 truncate rounded-md px-1.5 py-0.5 text-[11px] font-semibold sm:text-xs"
-              :style="{ backgroundColor: cell.sport.color, color: readableTextColor(cell.sport.color) }"
+              :style="{ backgroundColor: tag.sport.color, color: readableTextColor(tag.sport.color) }"
             >
-              {{ cell.sport.name }}
+              {{ tag.sport.name }}
             </div>
-            <div class="mt-0.5 truncate text-[11px] text-slate-500">{{ cell.category?.name }}</div>
-            <div v-if="cell.log.note" class="mt-0.5 hidden truncate text-[11px] text-slate-400 sm:block">{{ cell.log.note }}</div>
+            <div v-if="cell.hiddenCount" class="mt-0.5 text-[11px] font-semibold text-emerald-600 sm:text-xs">{{ `+${cell.hiddenCount}` }}</div>
+            <template v-if="cell.only">
+              <div class="mt-0.5 truncate text-[11px] text-slate-500">{{ cell.only.category.name }}</div>
+              <div v-if="cell.only.note" class="mt-0.5 hidden truncate text-[11px] text-slate-400 sm:block">{{ cell.only.note }}</div>
+            </template>
           </template>
         </div>
       </div>

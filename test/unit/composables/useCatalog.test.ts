@@ -53,14 +53,17 @@ describe('useCatalog', () => {
     const user = await registerAs()
     const { removeSport } = useCatalog()
     const { sportId, categoryId } = catalogIds()
-    seedLog(user.uid, '2026-10-01', { sportId, categoryId })
-    seedLog(user.uid, '2026-10-02', { sportId, categoryId })
+    // 同一天兩筆，確認是用紀錄 ID 改寫，不是用日期
+    const a = seedLog(user.uid, '2026-10-01', { sportId, categoryId })
+    const b = seedLog(user.uid, '2026-10-01', { sportId, categoryId })
+    const untouched = seedLog(user.uid, '2026-10-01', { sportId: 'other', categoryId })
     await vi.waitFor(() => expect(useLogs().countUsing('sportId', sportId)).toBe(2))
 
     await removeSport(sportId)
     expect(readDoc(`users/${user.uid}/sports/${sportId}`)).toBeUndefined()
-    expect(readDoc(`users/${user.uid}/logs/2026-10-01`)?.sportId).toBe('other')
-    expect(readDoc(`users/${user.uid}/logs/2026-10-02`)?.sportId).toBe('other')
+    expect(readDoc(`users/${user.uid}/logs/${a}`)?.sportId).toBe('other')
+    expect(readDoc(`users/${user.uid}/logs/${b}`)?.sportId).toBe('other')
+    expect(listDocs(`users/${user.uid}/logs`).map(d => d.id).sort()).toEqual([a, b, untouched].sort())
 
     await expect(removeSport('other')).rejects.toThrow('「其它」不能刪除')
   })
@@ -69,7 +72,7 @@ describe('useCatalog', () => {
     const user = await registerAs()
     const { sportId, categoryId } = catalogIds()
     for (let i = 0; i < 401; i++) {
-      seedLog(user.uid, `2026-01-${String(i).padStart(4, '0')}`, { sportId, categoryId })
+      seedLog(user.uid, '2026-01-01', { sportId, categoryId })
     }
     await vi.waitFor(() => expect(useLogs().countUsing('sportId', sportId)).toBe(401))
 
@@ -96,10 +99,10 @@ describe('useCatalog', () => {
     expect(readDoc(`users/${user.uid}/categories/${categoryId}`)?.name).toBe('課程')
     await expect(updateCategory('other', '其它')).rejects.toThrow('「其它」不能修改名稱')
 
-    seedLog(user.uid, '2026-10-01', { sportId, categoryId })
+    const logId = seedLog(user.uid, '2026-10-01', { sportId, categoryId })
     await vi.waitFor(() => expect(useLogs().countUsing('categoryId', categoryId)).toBe(1))
     await removeCategory(categoryId)
-    expect(readDoc(`users/${user.uid}/logs/2026-10-01`)?.categoryId).toBe('other')
+    expect(readDoc(`users/${user.uid}/logs/${logId}`)?.categoryId).toBe('other')
     await expect(removeCategory('other')).rejects.toThrow('「其它」不能刪除')
   })
 })

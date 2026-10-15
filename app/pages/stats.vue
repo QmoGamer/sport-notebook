@@ -42,6 +42,9 @@ const entries = computed(() => (rangeInvalid.value
 const sportCounts = computed(() => countBy(entries.value, 'sportId', sports.value.map(s => s.id)))
 const categoryCounts = computed(() => countBy(entries.value, 'categoryId', categories.value.map(c => c.id)))
 
+const groups = computed(() => groupByDate(entries.value))
+const activeDays = computed(() => countDates(entries.value))
+
 const topSport = computed(() => (sportCounts.value[0] ? resolveSport(sportCounts.value[0].id).name : '—'))
 
 function bars(counts: { id: string; count: number }[]) {
@@ -130,10 +133,14 @@ const selectClass = 'mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.
     </div>
 
     <!-- 摘要 -->
-    <div class="mt-6 grid grid-cols-3 gap-3">
+    <div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-4" data-stat="count">
+        <p class="text-xs text-slate-500">運動次數</p>
+        <p class="mt-1 text-2xl font-bold text-slate-900">{{ entries.length }}<span class="ml-1 text-sm font-medium text-slate-400">次</span></p>
+      </div>
       <div class="rounded-2xl border border-slate-200 bg-white p-4" data-stat="days">
         <p class="text-xs text-slate-500">運動天數</p>
-        <p class="mt-1 text-2xl font-bold text-slate-900">{{ entries.length }}<span class="ml-1 text-sm font-medium text-slate-400">天</span></p>
+        <p class="mt-1 text-2xl font-bold text-slate-900">{{ activeDays }}<span class="ml-1 text-sm font-medium text-slate-400">天</span></p>
       </div>
       <div class="rounded-2xl border border-slate-200 bg-white p-4" data-stat="period">
         <p class="text-xs text-slate-500">期間天數</p>
@@ -190,28 +197,30 @@ const selectClass = 'mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.
       </div>
       <p v-if="!entries.length" class="px-6 py-12 text-center text-sm text-slate-400">這段期間沒有符合條件的紀錄</p>
       <ul v-else class="divide-y divide-slate-100">
-        <li v-for="entry in entries" :key="entry.date">
+        <li v-for="group in groups" :key="group.date">
           <button
             type="button"
             class="flex w-full items-start gap-4 px-4 py-4 text-left hover:bg-slate-50 sm:px-6"
-            data-log-row
-            @click="openDay(entry.date)"
+            data-day-row
+            @click="openDay(group.date)"
           >
             <div class="w-14 shrink-0 text-center">
-              <p class="text-2xl font-bold text-slate-900">{{ rowInfo(entry.date).day }}</p>
-              <p class="text-xs text-slate-400">{{ rowInfo(entry.date).sub }}</p>
+              <p class="text-2xl font-bold text-slate-900">{{ rowInfo(group.date).day }}</p>
+              <p class="text-xs text-slate-400">{{ rowInfo(group.date).sub }}</p>
             </div>
-            <div class="min-w-0 flex-1">
-              <div class="flex items-center gap-2">
-                <span
-                  class="truncate rounded-md px-1.5 py-0.5 text-xs font-semibold"
-                  :style="{ backgroundColor: resolveSport(entry.sportId).color, color: readableTextColor(resolveSport(entry.sportId).color) }"
-                >
-                  {{ resolveSport(entry.sportId).name }}
-                </span>
-                <span class="text-sm text-slate-500">{{ resolveCategory(entry.categoryId).name }}</span>
+            <div class="min-w-0 flex-1 space-y-2">
+              <div v-for="entry in group.entries" :key="entry.id" data-log-row>
+                <div class="flex items-center gap-2">
+                  <span
+                    class="truncate rounded-md px-1.5 py-0.5 text-xs font-semibold"
+                    :style="{ backgroundColor: resolveSport(entry.sportId).color, color: readableTextColor(resolveSport(entry.sportId).color) }"
+                  >
+                    {{ resolveSport(entry.sportId).name }}
+                  </span>
+                  <span class="text-sm text-slate-500">{{ resolveCategory(entry.categoryId).name }}</span>
+                </div>
+                <p v-if="entry.note" class="mt-1 line-clamp-2 text-sm text-slate-500">{{ entry.note }}</p>
               </div>
-              <p v-if="entry.note" class="mt-1 line-clamp-2 text-sm text-slate-500">{{ entry.note }}</p>
             </div>
           </button>
         </li>

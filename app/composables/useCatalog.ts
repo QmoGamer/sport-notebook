@@ -92,7 +92,7 @@ export function useCatalog() {
     for (const [index, chunk] of chunks.entries()) {
       const batch = writeBatch($fbDb)
       for (const log of chunk) {
-        batch.update(doc($fbDb, 'users', uid, 'logs', log.date), { [field]: OTHER_ID, updatedAt: serverTimestamp() })
+        batch.update(doc($fbDb, 'users', uid, 'logs', log.id), { [field]: OTHER_ID, updatedAt: serverTimestamp() })
       }
       if (index === chunks.length - 1) batch.delete(doc($fbDb, 'users', uid, kind, id))
       await batch.commit()

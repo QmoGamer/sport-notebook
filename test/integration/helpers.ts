@@ -16,15 +16,21 @@ export async function registerAs(name = '小明', email = 'ming@example.com', pa
   return user.value!
 }
 
+let seedSeq = 0
+
+/** 直接寫入一筆紀錄並回傳文件 ID；createdAt 依呼叫順序遞增，且一定早於測試中新增的紀錄 */
 export function seedLog(uid: string, date: string, input: { sportId: string; categoryId: string; note?: string }) {
-  seedDoc(`users/${uid}/logs/${date}`, {
+  const seq = ++seedSeq
+  const id = `seed-${seq}`
+  seedDoc(`users/${uid}/logs/${id}`, {
     date,
     sportId: input.sportId,
     categoryId: input.categoryId,
     note: input.note ?? '',
-    createdAt: fakeTimestamp(0),
-    updatedAt: fakeTimestamp(0),
+    createdAt: fakeTimestamp(-1_000_000 + seq),
+    updatedAt: fakeTimestamp(-1_000_000 + seq),
   })
+  return id
 }
 
 /** 預設「桌球」、「練習」的自動 ID */

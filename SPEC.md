@@ -1,6 +1,6 @@
 # 運動筆記本（sport-notebook）軟體設計規格書
 
-> 版本：v1.0 規格（2026-10-13），由「群組預約系統（book-play-ball）v0.4.4」規格改寫而來
+> 版本：v1.2 規格（2026-10-15），對應程式碼 v0.1.0 之後的「一天多筆紀錄」改版；由「群組預約系統（book-play-ball）v0.4.4」規格改寫而來
 > 讀者：負責從零實作本專案的 AI 開發代理
 
 ## 0. 如何使用這份文件
@@ -19,10 +19,10 @@
 - 使用 Email + 密碼登入（Firebase Email/Password 驗證），可自行註冊，註冊時填暱稱。
 - 每個人的資料只有自己看得到。未登入只能看到登入頁和註冊頁。
 - 首頁是月曆（一週從**週一**開始）。點選當月任何一天（過去、今天、未來都可以）會打開紀錄視窗：
-  - 當天沒有紀錄 → 新增紀錄
-  - 當天已有紀錄 → 編輯紀錄，也可以刪除
+  - 當天沒有紀錄 → 直接進入新增畫面
+  - 當天已有紀錄 → 顯示當天的紀錄列表，可以再新增一筆、點某一筆編輯，或在列表上刪除
   - 未來的日期可以拿來記預約的課程
-- 一筆紀錄包含：**運動**（下拉選單，必填）、**類型**（下拉選單，必填）、**筆記**（textarea，選填）。**一天最多一筆紀錄**。
+- 一筆紀錄包含：**運動**（下拉選單，必填）、**類型**（下拉選單，必填）、**筆記**（textarea，選填）。**同一天可以有多筆紀錄**，也可以重複同一種運動（例如早上、晚上各打一次桌球）。
 - 「設定」頁可以管理運動與類型清單（每個人各自一份，不和別人共用），運動可以設定顏色，月曆上會用這個顏色顯示。
 - 「統計」頁可以依期間（週、月、自訂）以及運動、類型篩選紀錄，看次數統計與紀錄列表。
 - 資料存在 Firestore，用 onSnapshot 即時同步；同一個帳號開兩個分頁也會同步。
@@ -45,7 +45,7 @@
 
 - 忘記密碼、Email 驗證信、第三方登入、刪除帳號
 - 多人共享、群組、好友（原 book-play-ball 的共享看板功能全部移除）
-- 同一天多筆紀錄、時段、時長、強度等額外欄位
+- 時段、時長、強度等額外欄位；同一天內的手動排序（依建立先後排列）
 - 運動與類型的排序調整（依建立順序排列，「其它」固定最後）
 - 伺服器端渲染（SSR 關閉，純 SPA）、後端 API（直接從瀏覽器讀寫 Firestore）
 
@@ -53,17 +53,20 @@
 
 ## 2. 技術堆疊
 
-| 類別 | 套件 | 版本 |
-|------|------|-----------|
-| 框架 | `nuxt` | ^4.5.2 |
-| | `vue` | ^3.5.43 |
-| | `vue-router` | ^5.3.1 |
-| 樣式 | `@nuxtjs/tailwindcss`（Tailwind v3 語法） | ^6.14.0（devDependency） |
-| 後端服務 | `firebase`（使用 `firebase/app`、`firebase/auth`、`firebase/firestore` 的 modular API） | ^12.19.0 |
-| 測試 | `vitest` | ^5.0.3 |
-| | `@nuxt/test-utils` | ^4.3.3 |
-| | `@vue/test-utils` | ^2.5.1 |
-| | `happy-dom` | ^21.0.1 |
+| 類別 | 套件 | `package.json` 版本範圍 | 實際安裝（v0.1.0） |
+|------|------|-----------|-----------|
+| 框架 | `nuxt` | ^4.5.2 | 4.6.1 |
+| | `vue` | ^3.5.43 | 3.5.44 |
+| | `vue-router` | ^5.3.1 | 5.4.0 |
+| 樣式 | `@nuxtjs/tailwindcss`（Tailwind v3 語法） | ^6.14.0（devDependency） | 6.14.0（tailwindcss 3.4.19） |
+| 後端服務 | `firebase`（使用 `firebase/app`、`firebase/auth`、`firebase/firestore` 的 modular API） | ^12.19.0 | 12.19.0 |
+| 測試 | `vitest` | ^5.0.3 | 5.0.4 |
+| | `@nuxt/test-utils` | ^4.3.3 | 4.3.3 |
+| | `@vue/test-utils` | ^2.5.1 | 2.5.1 |
+| | `happy-dom` | ^21.0.1 | 21.0.1 |
+
+- `firebase` 已有 13.x，但 MUST 維持 `^12.19.0`，不要升級主版號。
+- 型別檢查不在依賴清單內，需要時用 `npx -p vue-tsc@3 -p typescript@5 vue-tsc -b --noEmit` 臨時執行（要先 `nuxt prepare` 產生 `.nuxt/tsconfig.*.json`）。
 
 - Node.js v22。
 - 語言：TypeScript + Vue SFC `<script setup lang="ts">`。
@@ -106,7 +109,7 @@
 │   │   ├── AppToast.vue
 │   │   ├── CatalogEditor.vue     # 設定頁共用的「運動／類型」清單編輯器
 │   │   ├── ConfirmDialog.vue     # 刪除前的確認 dialog
-│   │   ├── LogModal.vue          # 新增／編輯當日紀錄的視窗
+│   │   ├── LogModal.vue          # 當日紀錄視窗：列表（含刪除）與新增／編輯表單
 │   │   └── UserAvatar.vue
 │   ├── composables/
 │   │   ├── useAuth.ts
@@ -139,7 +142,9 @@
 │       ├── error.ts
 │       ├── redirect.ts
 │       └── stats.ts
-├── public/ (favicon.ico, robots.txt)
+├── public/
+│   ├── favicon.ico       # 暫用 Vue 預設圖示（取自 vuejs/create-vue 範本），之後可直接覆蓋
+│   └── robots.txt        # User-Agent: * / Disallow:（允許全部）
 ├── test/                 （見 §11）
 ├── firestore.rules       （見 §5.6）
 ├── .env.example
@@ -261,18 +266,20 @@ html {
 
 類型沒有顏色。
 
-### 5.4 `users/{uid}/logs/{date}`（運動紀錄）
+### 5.4 `users/{uid}/logs/{logId}`（運動紀錄）
 
-文件 ID 就是 date key（例如 `2026-10-20`），所以同一天最多只會有一份文件。
+一筆紀錄一份文件，`logId` 由 Firestore 自動產生（`doc(collection(...))`）。同一天可以有多份文件，用 `date` 欄位分組。
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| `date` | string | date key，格式 `YYYY-MM-DD`，與文件 ID 相同 |
+| `date` | string | date key，格式 `YYYY-MM-DD` |
 | `sportId` | string | 對應 `sports` 的文件 ID |
 | `categoryId` | string | 對應 `categories` 的文件 ID |
 | `note` | string | 筆記（已 trim），沒寫就是 `''`，最多 1000 字 |
-| `createdAt` | Timestamp | `serverTimestamp()`，只在新增時寫入 |
+| `createdAt` | Timestamp | `serverTimestamp()`，只在新增時寫入；同一天的紀錄依它排先後 |
 | `updatedAt` | Timestamp | `serverTimestamp()`，每次寫入都更新 |
+
+**舊資料相容（MUST）：** 一天一筆的舊版本把文件 ID 設成日期（例如 `logs/2026-10-20`）。這些文件不需要搬移，因為裡面本來就有 `date` 欄位。程式一律把文件 ID 當成不透明的識別碼，日期只讀 `date` 欄位，不可以從 ID 推日期，也不可以用日期組文件路徑。
 
 紀錄只存 ID，不存名稱快照。畫面上的名稱和顏色一律從目前的運動、類型清單查。這樣改名之後，所有舊紀錄會跟著顯示新名稱。
 
@@ -317,7 +324,7 @@ service cloud.firestore {
         allow delete: if isOwner(uid) && categoryId != 'other';
       }
 
-      match /logs/{date} {
+      match /logs/{logId} {
         allow read, write: if isOwner(uid);
       }
     }
@@ -381,7 +388,7 @@ service cloud.firestore {
 | `'sports'` | `Sport[]` | `[]` | `useCatalog` |
 | `'categories'` | `Category[]` | `[]` | `useCatalog` |
 | `'catalog-ready'` | `boolean` | `false` | `useCatalog` |
-| `'logs'` | `Record<string, LogEntry>` | `{}` | `useLogs` |
+| `'logs'` | `Record<string, LogEntry>`（key 是文件 ID） | `{}` | `useLogs` |
 | `'logs-ready'` | `boolean` | `false` | `useLogs` |
 | `'toasts'` | `Toast[]` | `[]` | `useToast` |
 | `'confirm'` | `ConfirmRequest \| null` | `null` | `useConfirm` |
@@ -395,7 +402,14 @@ service cloud.firestore {
 ```ts
 export interface Sport { id: string; name: string; color: string; order: number }
 export interface Category { id: string; name: string; order: number }
-export interface LogEntry { date: string; sportId: string; categoryId: string; note: string }
+export interface LogEntry {
+  id: string          // Firestore 文件 ID（舊資料是日期、新資料是自動 ID，一律當不透明字串）
+  date: string
+  sportId: string
+  categoryId: string
+  note: string
+  createdAt: number   // createdAt 的毫秒數，排同一天的先後；尚未取得時為 0
+}
 export interface LogInput { sportId: string; categoryId: string; note: string }
 export interface DateRange { start: string; end: string }   // 皆為 date key，含頭含尾
 export type PeriodMode = 'week' | 'month' | 'custom'
@@ -508,11 +522,16 @@ export function safeRedirect(value: unknown): string
 ```ts
 export interface StatsFilter { range: DateRange; sportId: string; categoryId: string }  // '' 表示全部
 export interface CountItem { id: string; count: number }
+export interface DateGroup { date: string; entries: LogEntry[] }
 export function filterLogs(logs: Record<string, LogEntry>, filter: StatsFilter): LogEntry[]
+export function countDates(entries: LogEntry[]): number
+export function groupByDate(entries: LogEntry[]): DateGroup[]
 export function countBy(entries: LogEntry[], field: 'sportId' | 'categoryId', order: string[]): CountItem[]
 ```
 
-- `filterLogs`：保留 `range.start <= date <= range.end`，並符合 sportId、categoryId 篩選的紀錄，依 `date` **降冪**排序。`range.start > range.end` 時回傳 `[]`。
+- `filterLogs`：保留 `range.start <= date <= range.end`，並符合 sportId、categoryId 篩選的紀錄。依 `date` **降冪**排序；同一天依 `createdAt` 升冪，再依 `id`。`range.start > range.end` 時回傳 `[]`。
+- `countDates`：不重複的 `date` 數量（運動天數）。
+- `groupByDate`：把相鄰同日期的紀錄分成一組，保留傳入的順序（搭配 `filterLogs` 的排序使用）。
 - `countBy`：依指定欄位計數，只回傳 count > 0 的項目，依 count **降冪**排序；count 相同時依 `order`（排好序的 ID 陣列）中的位置排序，不在陣列內的排最後。
 
 ### 7.8 `app/composables/useToast.ts`
@@ -649,32 +668,32 @@ export function useCatalog(): {
 **`removeSport(id)`**（`removeCategory` 相同，欄位換成 `categoryId`）：
 1. 驗證（不能是 `other`、要登入）。
 2. 從 `useLogs().logs` 找出 `sportId === id` 的紀錄。
-3. 用 `writeBatch` 把這些紀錄改成 `{ sportId: 'other', updatedAt: serverTimestamp() }`，最後一個 batch 再 `delete` 該運動文件。
+3. 用 `writeBatch` 把這些紀錄改成 `{ sportId: 'other', updatedAt: serverTimestamp() }`，最後一個 batch 再 `delete` 該運動文件。紀錄的文件路徑 MUST 用 `log.id`（`users/{uid}/logs/{log.id}`），不能用 `log.date`。
 4. Firestore 單一 batch 最多 500 次寫入：每 400 筆紀錄 commit 一次，運動文件的刪除放在**最後一個** batch（MUST）。中途失敗時運動還在，不會出現孤兒紀錄。
 
 ### 7.11 `app/composables/useLogs.ts`
 
 ```ts
 export function useLogs(): {
-  logs: Ref<Record<string, LogEntry>>
+  logs: Ref<Record<string, LogEntry>>   // key 是文件 ID
   ready: Ref<boolean>
   startSync(uid: string): Unsubscribe
   reset(): void
-  logFor(key: string): LogEntry | null
+  logsOn(key: string): LogEntry[]
   countUsing(field: 'sportId' | 'categoryId', id: string): number
-  saveLog(key: string, input: LogInput): Promise<void>
-  removeLog(key: string): Promise<void>
+  addLog(key: string, input: LogInput): Promise<void>
+  updateLog(id: string, input: LogInput): Promise<void>
+  removeLog(id: string): Promise<void>
 }
 ```
 
-- `startSync(uid)`：`onSnapshot(collection(db, 'users', uid, 'logs'), next, error)`。`next` 把每份文件轉成 `LogEntry`（只取 `date`、`sportId`、`categoryId`、`note`），以 date 為 key **整個**指定給 `logs.value`，並設定 `ready = true`。`error`：`console.error('[logs] 同步運動紀錄失敗', error)`。
-- `logFor(key)`：`logs.value[key] ?? null`。
-- `countUsing(field, id)`：計算使用某個運動或類型的紀錄數。
-- `saveLog(key, input)`：未登入就 `throw new Error('尚未登入')`。`note = input.note.trim()`。
-  - 已有紀錄 → `updateDoc(ref, { sportId, categoryId, note, updatedAt: serverTimestamp() })`
-  - 沒有紀錄 → `setDoc(ref, { date: key, sportId, categoryId, note, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })`
-  - 不手動更新本地狀態，畫面由 onSnapshot 同步回來。
-- `removeLog(key)`：未登入就拋錯；否則 `deleteDoc(ref)`。
+- `startSync(uid)`：`onSnapshot(collection(db, 'users', uid, 'logs'), next, error)`。`next` 對每份文件呼叫 `d.data({ serverTimestamps: 'estimate' })`（剛寫入、還沒拿到伺服器時間的文件用本地估計值，同一天的排序才不會閃動），轉成 `LogEntry`（`createdAt` 取 `createdAt?.toMillis?.() ?? 0`），以**文件 ID** 為 key **整個**指定給 `logs.value`，並設定 `ready = true`。`error`：`console.error('[logs] 同步運動紀錄失敗', error)`。
+- `logsOn(key)`：`date === key` 的紀錄，依 `createdAt` 升冪、再依 `id` 排序；沒有就回傳 `[]`。
+- `countUsing(field, id)`：計算使用某個運動或類型的紀錄數（同一天多筆分別計算）。
+- 以下三個函式未登入時都 `throw new Error('尚未登入')`，`note` 一律 `trim()`；不手動更新本地狀態，畫面由 onSnapshot 同步回來：
+  - `addLog(key, input)`：`setDoc(doc(collection(db, 'users', uid, 'logs')), { date: key, sportId, categoryId, note, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })`。
+  - `updateLog(id, input)`：`updateDoc(logRef(id), { sportId, categoryId, note, updatedAt: serverTimestamp() })`，不改 `date`、`createdAt`。
+  - `removeLog(id)`：`deleteDoc(logRef(id))`。
 
 ### 7.12 Middleware
 
@@ -823,7 +842,7 @@ export default defineNuxtRouteMiddleware((to) => {
   - 表單下方置中小字：「已經有帳號了？」加上連結「登入」→ `/login`（保留 `redirect` query）。
 - `submit()`：
   1. `submitting` 是 true 就 return；清空錯誤訊息。
-  2. 前端驗證，依序檢查，第一個失敗就顯示訊息並 return（不呼叫 API）：
+  2. 前端驗證，依序檢查，第一個失敗就顯示訊息並 return（不呼叫 API）。表單加上 `novalidate`，讓這裡的驗證訊息一定會出現，不被瀏覽器內建的欄位檢查攔下：
      - 暱稱 trim 後為空 →「請輸入暱稱」
      - 密碼長度 < 6 →「密碼長度至少需要 6 個字元」
      - 兩次密碼不一致 →「兩次輸入的密碼不一致」
@@ -850,19 +869,20 @@ export default defineNuxtRouteMiddleware((to) => {
   - `todayKey = formatDateKey(new Date())` 在 setup 時計算一次。
   - `viewYear`、`viewMonth` 預設是今天所在的年月。
   - `shiftMonth(delta)` 用 `new Date(viewYear, viewMonth + delta, 1)` 計算，可以跨年。
-- `cells`（computed）：`buildMonthGrid(...)` 的每一格再加上：
-  - `log = logFor(key)`
-  - `sport = log ? resolveSport(log.sportId) : null`
-  - `category = log ? resolveCategory(log.categoryId) : null`
+- `MAX_VISIBLE = 2`：每格最多顯示幾個運動標籤。
+- `cells`（computed）：`buildMonthGrid(...)` 的每一格再加上（`logs = logsOn(key)`）：
+  - `tags`：前 `MAX_VISIBLE` 筆紀錄，各自是 `{ id, sport: resolveSport(log.sportId) }`
+  - `hiddenCount = max(logs.length - MAX_VISIBLE, 0)`
+  - `only`：剛好 1 筆時是 `{ category: resolveCategory(...), note }`，否則 null
   - `disabled = !inCurrentMonth`（**過去、今天、未來都可以點**，只有非當月不能點）
 - 每一格：
   - `:aria-disabled="cell.disabled"`；disabled 時 `cursor-not-allowed bg-slate-50/60`，否則 `cursor-pointer hover:bg-slate-50`
   - 點擊：`!cell.disabled && openDay(cell.key)`
   - 日期數字（圓形 `h-6 w-6 sm:h-7 sm:w-7`）的顏色：非當月 → `text-slate-300`；今天 → `bg-emerald-600 text-white`；其他 → `text-slate-700`
   - 有紀錄而且是當月時，在數字下方依序顯示：
-    1. 運動標籤：`mt-1 truncate rounded-md px-1.5 py-0.5 text-[11px] font-semibold sm:text-xs`，inline style `{ backgroundColor: sport.color, color: readableTextColor(sport.color) }`，文字是 `sport.name`
-    2. 類型：`mt-0.5 truncate text-[11px] text-slate-500`，文字是 `category.name`
-    3. 筆記（`note` 不是空字串才顯示）：`mt-0.5 hidden truncate text-[11px] text-slate-400 sm:block`，文字是 `note`
+    1. 每個 `tag` 一個運動標籤（依建立先後）：`mt-1 truncate rounded-md px-1.5 py-0.5 text-[11px] font-semibold sm:text-xs`，inline style `{ backgroundColor: sport.color, color: readableTextColor(sport.color) }`，文字是 `sport.name`
+    2. `hiddenCount > 0` 時：`mt-0.5 text-[11px] font-semibold text-emerald-600 sm:text-xs`，文字 `` `+${hiddenCount}` ``（例如「+2」）
+    3. **只在當天剛好 1 筆時**才顯示類型（`mt-0.5 truncate text-[11px] text-slate-500`）與筆記（`note` 不是空字串才顯示，`mt-0.5 hidden truncate text-[11px] text-slate-400 sm:block`），避免格子太擠
 - `openDay(key)`：設定 `activeDateKey = key`、`modalOpen = true`。
 - 頁面底部放 `<LogModal v-model="modalOpen" :date-key="activeDateKey" />`。
 
@@ -872,47 +892,62 @@ Props：`{ modelValue: boolean; dateKey: string | null }`；emits：`'update:mod
 
 **顯示條件**：`modelValue && dateKey` 都成立時才顯示。用 `<Teleport to="body">` 包住，再包一層 `<Transition name="modal-fade">`（opacity 0.15s ease）。
 
+視窗有兩種畫面，在同一個視窗內切換：**列表**（當天所有紀錄）與**表單**（新增或編輯一筆）。
+
 **狀態**：
-- `existing = computed(() => dateKey ? logFor(dateKey) : null)`、`isEdit = computed(() => !!existing.value)`
-- 表單：`form = reactive({ sportId: '', categoryId: '', note: '' })`
-- `pending: 'save' | 'delete' | null`
+- `view: 'list' | 'form'`
+- `editingId: string | null`：表單在編輯哪一筆；null 表示新增
+- `form = reactive({ sportId: '', categoryId: '', note: '' })`
+- `saving: boolean`、`deletingId: string | null`；`busy = saving || deletingId !== null`
+- `dayLogs = computed(() => logsOn(dateKey))`
 
-**開啟時初始化（MUST）**：`watch(() => [props.modelValue, props.dateKey], ...)`，每次「打開」或「換日期」時重設表單：
-- 有紀錄：帶入紀錄的值；如果 `sportId`、`categoryId` 已經不在清單裡，就改用 `other`
-- 沒有紀錄：`sportId = sports[0].id`、`categoryId = categories[0].id`、`note = ''`（清單第一個，一開始是桌球、練習）
-- 清單還沒載入（`ready` 為 false）：等 `ready` 變成 true 時再初始化一次
+**`openForm(id)`**：設定 `editingId = id`、`view = 'form'`，並帶入表單：
+- 編輯（找得到那一筆）：帶入紀錄的值；`sportId`、`categoryId` 已經不在清單裡時改用 `other`
+- 新增：`sportId = sports[0].id`、`categoryId = categories[0].id`、`note = ''`（清單第一個，一開始是桌球、練習）
 
-**結構**：
-- 遮罩：`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4`，`@click.self="close"`。處理中時點遮罩不關閉。
+**開啟時重設（MUST）**：`watch(() => [props.modelValue, props.dateKey], ...)`，每次「打開」或「換日期」時：`editingId = null`；`dayLogs` 有資料 → `view = 'list'`，沒有 → `openForm(null)`。另外：
+- 清單還沒載入（`ready` 為 false）而停在表單時，等 `ready` 變成 true 再 `openForm(editingId)` 一次
+- 編輯中的那一筆被其他分頁刪掉（不在 `dayLogs` 裡了）→ 回到列表
+
+**共同結構**：
+- 遮罩：`fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4`，`@click.self="close"`。`busy` 時點遮罩不關閉。
 - 卡片：`w-full max-w-md rounded-2xl bg-white p-6 shadow-xl sm:p-7`。
 - 標頭左側：
-  - 小眉標 `` `${WEEKDAY_EN} · ${isEdit ? 'EDIT' : 'NEW ENTRY'}` ``。`WEEKDAY_EN` 依 `parseDateKey(dateKey).getDay()` 取 `SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY`。
-  - `h3`：`` `${dateKey} 運動紀錄` ``（例如「2026-10-20 運動紀錄」）。
+  - 小眉標：列表是 `` `${WEEKDAY_EN} · LOGS` ``；表單是 `` `${WEEKDAY_EN} · ${editingId ? 'EDIT' : 'NEW ENTRY'}` ``。`WEEKDAY_EN` 依 `parseDateKey(dateKey).getDay()` 取 `SUNDAY, MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY`。
+  - `h3`：`` `${dateKey} 運動紀錄` ``（例如「2026-10-20 運動紀錄」），兩種畫面相同。
 - 標頭右側：關閉按鈕 `aria-label="關閉"`（X 圖示）。
-- 表單（`@submit.prevent="save"`，`mt-5 space-y-4`）：
-  - 「運動」：`<select id="log-sport">`，選項是 `sports`，option 文字是名稱
-  - 「類型」：`<select id="log-category">`，選項是 `categories`
-  - 「筆記」：`<textarea id="log-note" rows="4" maxlength="1000" placeholder="今天練了什麼？有什麼心得？（選填）">`
-  - 清單還沒載入或處理中時，所有欄位 disabled
-- 按鈕區（`mt-6`）：
-  - 主要按鈕（`type="submit"`，滿寬，`rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white`）：新增時「儲存紀錄」，編輯時「更新紀錄」；`pending === 'save'` 時是 `<AppSpinner />` 加「儲存中…」
-  - 編輯時才顯示：主要按鈕下方置中的紅色文字按鈕「刪除這筆紀錄」（`mt-3 text-sm font-semibold text-red-500`）；`pending === 'delete'` 時是 `<AppSpinner />` 加「刪除中…」
-  - `pending` 不是 null 時兩個按鈕都 disabled
+
+**列表畫面**（`mt-5`）：
+- 沒有紀錄時：置中小字「這天還沒有紀錄」（`py-6 text-sm text-slate-400`）。
+- 有紀錄時：`ul.max-h-72.divide-y.overflow-y-auto`，每列 `li[data-log-item]`（`flex items-center gap-2`）：
+  - 左側整塊是按鈕（點擊 → `openForm(log.id)`）：第一行是運動標籤（同月曆樣式，`text-xs`）加類型名稱（`text-sm text-slate-500`）；有筆記時第二行顯示筆記（`truncate text-sm text-slate-400`）
+  - 右側刪除按鈕：垃圾桶圖示，`aria-label="刪除這筆紀錄"`，`text-slate-400 hover:bg-red-50 hover:text-red-500`；這一列正在刪除時換成 `<AppSpinner />`
+  - `busy` 時所有列的按鈕都 disabled
+- 列表下方滿寬虛線按鈕「＋ 新增一筆紀錄」（`border border-dashed border-emerald-300 text-emerald-600`，`＋` 是全形）→ `openForm(null)`；`busy` 時 disabled。
+
+**表單畫面**（`@submit.prevent="save"`，`mt-5 space-y-4`）：
+- 「運動」：`<select id="log-sport">`，選項是 `sports`，option 文字是名稱
+- 「類型」：`<select id="log-category">`，選項是 `categories`
+- 「筆記」：`<textarea id="log-note" rows="4" maxlength="1000" placeholder="今天練了什麼？有什麼心得？（選填）">`
+- 清單還沒載入或 `saving` 時，所有欄位與主要按鈕 disabled
+- 主要按鈕（`type="submit"`，滿寬，`rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white`）：新增時「儲存紀錄」，編輯時「更新紀錄」；`saving` 時是 `<AppSpinner />` 加「儲存中…」
+- 當天已有紀錄時，主要按鈕下方置中顯示文字按鈕「← 返回列表」（`mt-3 text-sm font-semibold text-slate-500`），不儲存直接回到列表；當天沒有紀錄時不顯示
+- 表單畫面**沒有**刪除按鈕，刪除只在列表
 
 **`save()`**：
-1. 沒有 `dateKey` 或 `pending` 不是 null 就 return。
-2. `pending = 'save'`，`await saveLog(dateKey, { ...form })`。
-3. 成功：toast success `` `已儲存 ${formatDateLabel(dateKey)} 的紀錄` ``，然後 `close()`。
-4. 失敗：**不關閉視窗**，toast error `` `儲存失敗：${errorMessage(error)}` ``。
-5. `finally`：`pending = null`。
+1. 沒有 `dateKey` 或 `busy` 就 return。
+2. `saving = true`；`editingId` 有值 → `await updateLog(editingId, { ...form })`，否則 `await addLog(dateKey, { ...form })`。
+3. 成功：toast success `` `已儲存 ${formatDateLabel(dateKey)} 的紀錄` ``，`editingId = null`、`view = 'list'`。**不關閉視窗**，方便連續新增。
+4. 失敗：停留在表單，toast error `` `儲存失敗：${errorMessage(error)}` ``。
+5. `finally`：`saving = false`。
 
-**`remove()`**：
-1. 沒有 `dateKey` 或 `pending` 不是 null 就 return。
-2. `await confirm({ title: '刪除紀錄', message: `確定要刪除 ${formatDateLabel(dateKey)} 的紀錄嗎？` })` 為 false 就 return。
-3. `pending = 'delete'`，`await removeLog(dateKey)`。
-4. 成功：toast success `` `已刪除 ${formatDateLabel(dateKey)} 的紀錄` ``，`close()`。
-5. 失敗：toast error `` `刪除失敗：${errorMessage(error)}` ``，不關閉。
-6. `finally`：`pending = null`。
+**`remove(id)`**（列表上的刪除按鈕）：
+1. 沒有 `dateKey` 或 `busy` 就 return；在 `dayLogs` 找不到這筆也 return。
+2. `await confirm({ title: '刪除紀錄', message: `確定要刪除 ${formatDateLabel(dateKey)} 的「${resolveSport(log.sportId).name}」紀錄嗎？` })` 為 false 就 return。內文帶運動名稱，同一天有多筆時才分得出是哪一筆。
+3. `deletingId = id`，`await removeLog(id)`。
+4. 成功：toast success `` `已刪除 ${formatDateLabel(dateKey)} 的紀錄` ``，停留在列表（不關閉視窗）。
+5. 失敗：toast error `` `刪除失敗：${errorMessage(error)}` ``。
+6. `finally`：`deletingId = null`。
 
 ### 8.11 `pages/settings.vue`
 
@@ -938,7 +973,7 @@ Props：`{ modelValue: boolean; dateKey: string | null }`；emits：`'update:mod
 - 「新密碼」`id="new-password"`（placeholder「至少 6 個字元」，`autocomplete="new-password"`）
 - 「確認新密碼」`id="new-password-confirm"`（placeholder「再次輸入新密碼」）
 - 按鈕「更新密碼」；送出中顯示「更新中…」。
-- 前端驗證（依序，失敗就顯示 `role="alert"` 訊息並 return）：
+- 前端驗證（依序，失敗就顯示 `role="alert"` 訊息並 return；表單加上 `novalidate`）：
   - 目前密碼為空 →「請輸入目前密碼」
   - 新密碼長度 < 6 →「密碼長度至少需要 6 個字元」
   - 兩次不一致 →「兩次輸入的密碼不一致」
@@ -962,11 +997,11 @@ Props：`{ kind: 'sport' | 'category' }`。依 kind 對應 `useCatalog` 的 spor
 - 名稱（`flex-1 text-sm font-medium text-slate-700`）。
 - `other` 那一列：名稱後面加一個膠囊「固定」（`rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500`），**沒有**編輯、刪除按鈕（運動的「其它」仍可改顏色）。
 - 其他列：右側「編輯」（`text-sm text-slate-500`）、「刪除」（`text-sm text-red-500`）文字按鈕。
-- 編輯模式（同時只有一列能編輯）：名稱變成輸入框（`maxlength="20"`，預設帶入原名稱，按 Enter 等同儲存），右側按鈕變成「儲存」、「取消」。
+- 編輯模式（同時只有一列能編輯）：名稱變成輸入框（`maxlength="20"`，預設帶入原名稱，按 Enter 等同儲存），右側按鈕變成「儲存」、「取消」。輸入框 trim 後為空時「儲存」disabled。
   - 儲存成功 toast `` `已更新「${newName}」` ``，離開編輯模式；失敗 toast `` `更新失敗：${msg}` ``，維持編輯模式。
 
 **新增列**（清單下方，`mt-3 flex gap-2`）：
-- sport 才有：顏色選擇器 `aria-label="新運動的顏色"`，預設 `nextSportColor()`，每次新增成功後重設。
+- sport 才有：顏色選擇器 `aria-label="新運動的顏色"`，預設 `nextSportColor()`，每次新增成功後重設；另外 `watch` 運動清單的長度，清單載入或變動時也重設（元件掛載時清單可能還沒載入，只在 setup 取一次會一直是第一個顏色）。
 - 名稱輸入框（`maxlength="20"`，按 Enter 等同新增）。
 - 按鈕「新增」：trim 後為空時 disabled。
 - 成功 toast `` `已新增「${name}」` ``，清空輸入框；失敗 toast `` `新增失敗：${msg}` ``。
@@ -979,7 +1014,7 @@ Props：`{ kind: 'sport' | 'category' }`。依 kind 對應 `useCatalog` 的 spor
 3. 按「刪除」後才呼叫 remove；按「取消」、點遮罩或按 Escape 就什麼都不做。成功 toast `` `已刪除「${name}」` ``；失敗 toast `` `刪除失敗：${msg}` ``。
 4. 紀錄還沒載入（`useLogs().ready` 為 false）時，刪除按鈕 disabled，避免算錯要改的紀錄。
 
-**處理中**：用 `busy` 狀態鎖住整個編輯器，同一個編輯器同時只能有一個操作進行中，期間所有按鈕和輸入框 disabled，正在處理的那顆按鈕顯示 `<AppSpinner />`。
+**處理中**：用 `busy` 狀態（例如 `'add'`、`` `rename:${id}` ``、`` `delete:${id}` ``、`` `color:${id}` ``）鎖住整個編輯器，同一個編輯器同時只能有一個操作進行中，期間所有按鈕和輸入框 disabled，正在處理的那顆按鈕顯示 `<AppSpinner />`。
 
 上表的 `{msg}` 一律是 `errorMessage(error)`。
 
@@ -996,31 +1031,33 @@ Props：`{ kind: 'sport' | 'category' }`。依 kind 對應 `useCatalog` 的 spor
   - 月 → `lastMonthRange(today)`（上個月）
   - 自訂 → `lastWeekRange(today)`
 - 週、月模式：「上一期」按鈕（`aria-label="上一期"`）、期間文字 `formatRangeLabel(mode, range)`、「下一期」按鈕（`aria-label="下一期"`），用 `shiftRange` 切換。可以切到未來。
-- 自訂模式：「開始日期」`<input id="range-start" type="date">`、「結束日期」`<input id="range-end" type="date">`。開始晚於結束時顯示 `role="alert"` 訊息「開始日期不能晚於結束日期」，下方統計全部以空資料呈現。
+- 自訂模式：「開始日期」`<input id="range-start" type="date">`、「結束日期」`<input id="range-end" type="date">`。開始晚於結束、或任一欄位被清空時，顯示 `role="alert"` 訊息「開始日期不能晚於結束日期」，下方統計全部以空資料呈現。
 - 篩選：「運動」`<select id="stats-sport">`，第一個選項「全部運動」（value `''`），其餘是 `sports`；「類型」`<select id="stats-category">`，第一個選項「全部類型」，其餘是 `categories`。預設都是全部。
 
 **計算**：
 - `entries = filterLogs(logs, { range, sportId, categoryId })`
 - `sportCounts = countBy(entries, 'sportId', sports.map(s => s.id))`
 - `categoryCounts = countBy(entries, 'categoryId', categories.map(c => c.id))`
+- `groups = groupByDate(entries)`、`activeDays = countDates(entries)`
 
-**摘要卡**（`grid grid-cols-3 gap-3`，每張 `rounded-2xl border bg-white p-4`）：
+**摘要卡**（`grid grid-cols-2 gap-3 sm:grid-cols-4`，每張 `rounded-2xl border bg-white p-4`，依序加上 `data-stat="count"`、`data-stat="days"`、`data-stat="period"`、`data-stat="top"` 供測試定位）：
 
 | 標題 | 數值 |
 |------|------|
-| 運動天數 | `entries.length`，後面加小字「天」 |
+| 運動次數 | `entries.length`（紀錄筆數），後面加小字「次」 |
+| 運動天數 | `activeDays`（有紀錄的日期數），後面加小字「天」 |
 | 期間天數 | `countDays(range)`，後面加小字「天」；自訂期間無效時顯示「—」 |
-| 最常做的運動 | `sportCounts[0]` 對應的運動名稱；沒有資料時顯示「—」 |
+| 最常做的運動 | `sportCounts[0]` 對應的運動名稱（依**次數**）；沒有資料時顯示「—」 |
 
-**長條圖**（兩張卡片，`sm:grid-cols-2`）：「依運動」、「依類型」。
+**長條圖**（兩張卡片，`sm:grid-cols-2`，分別加上 `data-chart="sport"`、`data-chart="category"`）：「依運動」、「依類型」。
 - 每列：上方是名稱和 `` `${count} 次` ``，下方是 `h-2 rounded-full bg-slate-100` 的軌道，裡面的長條寬度 `` `${count / 最大 count * 100}%` ``。
 - 「依運動」的長條顏色用運動顏色（inline style）；「依類型」用 `bg-emerald-500`。
 - 沒有資料時顯示「沒有資料」（`text-sm text-slate-400`）。
 
 **紀錄列表**（「紀錄列表」標題，加上 `` `共 ${entries.length} 筆` ``）：
-- 每列（`button`，點擊打開該天的 `LogModal`）：
+- 依日期分組，每個日期一列（`button`，加上 `data-day-row`，點擊打開該天的 `LogModal` 列表）：
   - 左側日期區塊（寬 `w-14` 置中）：大字是日期補零兩位（例如 `05`），小字是 `` `${month}月・週${weekdayLabel(date)}` ``（例如「10月・週一」；`・` 是全形中點 U+30FB，月份不補零）
-  - 中間：運動標籤（同月曆的樣式）加上類型名稱；下一行是筆記，`line-clamp-2 text-sm text-slate-500`，沒有筆記時不顯示
+  - 右側（`space-y-2`）：當天每一筆紀錄一個區塊（加上 `data-log-row`，依建立先後）：運動標籤（同月曆的樣式）加上類型名稱；下一行是筆記，`line-clamp-2 text-sm text-slate-500`，沒有筆記時不顯示
 - 空清單：「這段期間沒有符合條件的紀錄」。
 - 頁面底部放 `<LogModal v-model="modalOpen" :date-key="activeDateKey" />`。在 modal 裡修改或刪除後，統計會由 onSnapshot 即時更新。
 
@@ -1040,12 +1077,14 @@ Props：`{ kind: 'sport' | 'category' }`。依 kind 對應 `useCatalog` 的 spor
 1. 未登入時打開 `/stats` → 導到 `/login?redirect=/stats`。
 2. 登入成功 → toast「歡迎回來，小明！」→ `router.push('/stats')`。
 
-### 9.3 新增與編輯紀錄
+### 9.3 新增、編輯與刪除紀錄
 
-1. 在月曆點 10/20 → `LogModal` 顯示「TUESDAY · NEW ENTRY」，下拉選單預設是桌球、練習。
-2. 改選類型、寫筆記 → 按「儲存紀錄」→ `setDoc(users/{uid}/logs/2026-10-20)` → toast「已儲存 10/20 的紀錄」→ 視窗關閉。
-3. onSnapshot 更新 → 月曆的 10/20 出現綠底的「桌球」標籤、類型和筆記。
-4. 再點 10/20 → 眉標是「TUESDAY · EDIT」，表單帶入原本的值，按鈕是「更新紀錄」，下方有「刪除這筆紀錄」。
+1. 在月曆點 10/20（當天沒有紀錄）→ `LogModal` 直接顯示「TUESDAY · NEW ENTRY」，下拉選單預設是桌球、練習。
+2. 寫筆記 → 按「儲存紀錄」→ `setDoc(users/{uid}/logs/{自動 ID})` → toast「已儲存 10/20 的紀錄」→ 視窗切到列表「TUESDAY · LOGS」，出現剛才那一筆。
+3. 按「＋ 新增一筆紀錄」→ 改選「其它」→ 儲存 → 列表有 2 筆，依建立先後排列。
+4. 關閉視窗 → 月曆的 10/20 出現兩個運動標籤（不顯示類型與筆記，因為不只一筆）。
+5. 再點 10/20 → 直接是列表；點第一筆 → 「TUESDAY · EDIT」，表單帶入原本的值，按鈕是「更新紀錄」，下方有「← 返回列表」。
+6. 在列表按第二筆右側的垃圾桶 → 確認 dialog「確定要刪除 10/20 的「其它」紀錄嗎？」→ 按「刪除」→ toast「已刪除 10/20 的紀錄」，列表剩 1 筆。
 
 ### 9.4 刪除運動項目
 
@@ -1095,7 +1134,7 @@ Props：`{ kind: 'sport' | 'category' }`。依 kind 對應 `useCatalog` 的 spor
 
 | 情境 | 標題 | 內文 |
 |------|------|------|
-| 刪除紀錄 | `刪除紀錄` | `確定要刪除 {M/D} 的紀錄嗎？` |
+| 刪除紀錄 | `刪除紀錄` | `確定要刪除 {M/D} 的「{運動名稱}」紀錄嗎？` |
 | 刪除有紀錄的運動／類型 | `刪除運動`／`刪除類型` | `確定要刪除「{name}」嗎？有 {count} 筆紀錄會改為「其它」。` |
 | 刪除沒有紀錄的運動／類型 | `刪除運動`／`刪除類型` | `確定要刪除「{name}」嗎？` |
 
@@ -1171,6 +1210,9 @@ export default defineConfig({
           include: ['test/unit/composables/**/*.test.ts', 'test/integration/**/*.test.ts'],
           environment: 'nuxt',
           setupFiles: ['test/setup/nuxt.ts'],
+          // Vitest 5 預設快取轉譯後的模組，但 @nuxt/test-utils 的虛擬進入點（nuxt-vitest-app-entry）
+          // 從快取讀回後會解析失敗，導致第二次執行起所有 Nuxt 測試都無法啟動，所以關閉
+          fsModuleCache: false,
           environmentOptions: {
             nuxt: {
               domEnvironment: 'happy-dom',
@@ -1192,13 +1234,15 @@ export default defineConfig({
 
 `npm run test:unit` 和 `npm run test:integration` 是用路徑篩選，會跨 project 執行。
 
+**`fsModuleCache: false`（MUST）：** Vitest 5 預設開啟 `fsModuleCache`，會把轉譯後的模組存到 `node_modules/.vitest-cache` 供下次重用。`@nuxt/test-utils` 啟動 Nuxt 用的 `nuxt-vitest-app-entry.js` 是記憶體中的虛擬模組，從快取讀回時路徑會變成 `/node_modules/nuxt/...`（少了專案目錄），解析不到 `./diagnostics/core.js`。症狀是清掉快取後第一次全部通過，第二次起每個 Nuxt 測試檔都在啟動階段失敗（測試全部 skipped）。只需要在 `nuxt` project 關閉；`unit` project 不受影響。日後兩個套件修正相容性後可以移除。
+
 ### 11.4 假 Firebase 的規格
 
 #### `firebase-backend.ts`（共用狀態）
 
 ```ts
 backend = {
-  store: Map<string /* 完整文件路徑，例如 'users/uid-1/logs/2026-10-20' */, Record<string, unknown>>,
+  store: Map<string /* 完整文件路徑，例如 'users/uid-1/logs/auto-3' */, Record<string, unknown>>,
   accounts: Map<string /* email */, { uid: string; password: string }>,
   currentUser: { uid: string; email: string } | null,
   authListeners: Set<(user) => void>,
@@ -1216,7 +1260,8 @@ backend = {
   - `notifyCollection(path)`
   - `resetBackend()`：清空 store、accounts、currentUser、各計數器。**保留**所有監聽器，並通知原本有資料的集合。
   - `seedDoc(path, data)`：直接寫入一份文件（`path` 是完整文件路徑）並通知該集合的監聽器。
-  - `readDoc(path)`、`listDocs(collectionPath)`
+  - `readDoc(path)`、`listDocs(collectionPath)`、`parentOf(path)`（取上一層集合路徑）
+  - `backend`（共用狀態物件本身，假 SDK 模組直接讀寫它）
   - `fakeTimestamp(millis)` → `{ toMillis: () => millis }`
   - `seedAccount(email, password)` → 建立帳號並回傳 uid，不登入
   - `signInAs(uid, email)`：設定 currentUser 並 `notifyAuth()`，模擬 Firebase 還原登入狀態。
@@ -1256,8 +1301,8 @@ backend = {
 - `setDoc(ref, data)`：處理 sentinel 後寫入，並通知 `parentPath` 的監聽器
 - `updateDoc(ref, data)`：**文件不存在時 throw**（和真實 SDK 一樣），否則合併寫入並通知
 - `deleteDoc(ref)`：刪除並通知
-- `writeBatch(db)` → `{ set, update, delete, commit }`：前三者只是排入佇列；`commit()` 依序套用（update 遇到不存在的文件時整批都不套用並 reject），最後對每個被影響的集合各通知一次
-- `onSnapshot(colRef, next, error?)`：註冊監聽器，**同步**立刻 emit 一次；之後該集合每次寫入都會 emit `{ docs: [{ id, data() }...] }`。只回傳**直接**屬於該集合的文件（例如 `users/uid-1/logs` 不會包含 `users/uid-1`）
+- `writeBatch(db)` → `{ set, update, delete, commit }`，**四個方法都用 `vi.fn` 包起來**（測試會從 `vi.mocked(writeBatch).mock.results` 取出每個 batch，斷言 `update`、`delete` 的呼叫次數）：前三者只是排入佇列；`commit()` 依序套用（update 遇到不存在的文件時整批都不套用並 reject），最後對每個被影響的集合各通知一次
+- `onSnapshot(colRef, next, error?)`：註冊監聽器，**同步**立刻 emit 一次（每份文件的 `data(options?)` 忽略參數，回傳淺拷貝）；之後該集合每次寫入都會 emit `{ docs: [{ id, data() }...] }`。只回傳**直接**屬於該集合的文件（例如 `users/uid-1/logs` 不會包含 `users/uid-1`）
 
 ### 11.5 `test/setup/nuxt.ts`
 
@@ -1294,7 +1339,7 @@ afterEach(() => {
 
 - `freezeToday()`：`vi.useFakeTimers({ toFake: ['Date'] })` 加上 `vi.setSystemTime(new Date(2026, 9, 15, 12, 0))`，把今天固定在 2026-10-15（週四）。**只假造 Date**，`setTimeout` 和 Promise 照常運作。
 - `registerAs(name = '小明', email = 'ming@example.com', password = 'secret123')`：走真的 `useAuth().register()`，再 `await vi.waitFor(() => expect(useCatalog().ready.value).toBe(true))`，回傳 `user.value`。
-- `seedLog(uid, date, { sportId, categoryId, note = '' })`：用 `seedDoc` 寫入紀錄。
+- `seedLog(uid, date, { sportId, categoryId, note = '' })`：用 `seedDoc` 寫入 `users/{uid}/logs/seed-{N}`，**回傳文件 ID**。`createdAt`、`updatedAt` 是 `fakeTimestamp(-1_000_000 + N)`，所以排序就是呼叫順序，而且一定早於測試中透過 `addLog` 新增的紀錄。
 - `catalogIds()`：回傳 `{ sportId, otherSportId: 'other', categoryId, otherCategoryId: 'other' }`，其中 sportId、categoryId 是預設「桌球」、「練習」的自動 ID。
 - `answerConfirm(value: boolean)`：`await vi.waitFor(() => expect(useConfirm().request.value).not.toBeNull())`，記下 request 後呼叫 `useConfirm().answer(value)`，再 `await flushPromises()`，回傳記下的 request（讓測試斷言標題和內文）。元件測試只掛載單一元件，不會掛載 `ConfirmDialog`，所以直接透過 composable 回答；dialog 本身的畫面另外在 `confirm-dialog.test.ts` 測。
 - `toastMessages()`：回傳 `useToast().toasts.value.map(t => t.message)`。
@@ -1336,7 +1381,9 @@ afterEach(() => {
 - `errorMessage`：Error 取 message；其他轉字串
 - `authErrorMessage`：§7.5 表格的每個 code；沒有 code 時退回 `errorMessage`
 - `safeRedirect`：`'/stats'` 原樣；`'//evil.com'`、`'https://evil.com'`、`undefined`、陣列都回傳 `'/'`
-- `filterLogs`：日期含頭含尾；依運動、類型篩選；降冪排序；start > end 回傳空陣列
+- `filterLogs`：日期含頭含尾；依運動、類型篩選；日期降冪、同一天依建立先後；start > end 回傳空陣列
+- `countDates`：同一天多筆只算一天
+- `groupByDate`：依日期分組並保留順序
 - `countBy`：只回傳 count > 0；count 降冪；同 count 依 order
 
 #### 單元：`composables/useAuth.test.ts`（固定 Date 為 2026-10-12 10:00）
@@ -1358,18 +1405,20 @@ afterEach(() => {
 - resolveSport：找得到就回傳；找不到退回 `other`；清單空的時候回傳預設的「其它」
 - addSport：order 為最大值 + 1；名稱重複拋出「已經有同名的運動」；空白拋出「名稱不能空白」；顏色格式錯誤拋錯
 - updateSport：可以改名、改色；`other` 可以改色、改名時拋錯
-- removeSport：使用中的紀錄全部改成 `other` 後才刪除運動；刪除 `other` 拋錯
+- removeSport：使用中的紀錄全部改成 `other` 後才刪除運動（同一天兩筆都要改到，第三筆不相關的紀錄不受影響，證明是用紀錄 ID 改寫）；刪除 `other` 拋錯
 - removeSport 超過 400 筆紀錄時分成多個 batch，運動文件在最後一個 batch 刪除
 - category 系列：同上，`updateCategory('other', ...)` 一律拋錯
 
 #### 單元：`composables/useLogs.test.ts`
 
-- startSync：以 date 為 key，ready 變 true
-- saveLog 新紀錄：用 `setDoc` 寫入，有 createdAt、updatedAt；note 已 trim
-- saveLog 已有紀錄：用 `updateDoc`，不覆寫 createdAt
-- removeLog：刪除指定日期的文件
-- 未登入時 saveLog、removeLog 拋出「尚未登入」
-- countUsing：正確計數
+- startSync：以文件 ID 為 key，帶入 date 與 createdAt 毫秒數，ready 變 true
+- 舊資料（文件 ID 就是日期）也能正常讀取
+- logsOn：只回傳當天的紀錄，依建立先後排序；沒有時回傳 `[]`
+- addLog：自動 ID、同一天可以有多筆、有 createdAt 與 updatedAt、note 已 trim
+- updateLog：用 `updateDoc` 更新指定那一筆，不改 date 與 createdAt
+- removeLog：只刪除指定的那一筆
+- 未登入時 addLog、updateLog、removeLog 都拋出「尚未登入」
+- countUsing：同一天多筆分別計算
 
 #### 單元：`composables/useConfirm.test.ts`
 
@@ -1389,7 +1438,7 @@ afterEach(() => {
 - 從 `/login?redirect=/stats` 登入成功：toast「歡迎回來，小明！」，路由變成 `/stats`
 - 沒有 redirect 時導到 `/`；redirect 是 `//evil.com` 時也導到 `/`
 - 密碼錯誤：toast「登入失敗：Email 或密碼錯誤」，停留在 `/login`，密碼欄被清空，按鈕恢復成「登入 →」
-- 已登入時進入 `/login`，會直接被導到 `/`
+- 已登入時進入 `/login?redirect=/settings`，會直接被導到 `/settings`（不要測 `push('/login')`：上一個測試可能已停在 `/login`，重複導頁不會觸發 middleware）
 - 「建立帳號」連結保留 redirect：`a[href="/register?redirect=/stats"]`
 
 #### 整合：`register.test.ts`
@@ -1401,10 +1450,11 @@ afterEach(() => {
 
 #### 整合：`calendar.test.ts`（freezeToday；`dayCell(day)` = 所有 `[aria-disabled]` 格子中的第 `2 + day` 個，因為 2026/10 前面有 3 格 9 月）
 
-- 未登入打開 `/` 會被導到 `/login`
+- 未登入打開需要登入的頁面會被導到登入頁：`push('/stats')` → `/login?redirect=/stats`（同上，避免目標和目前路由相同）
 - 預設顯示「2026 年 10 月」；星期列第一個是「一」
 - 14 日（過去）、15 日（今天）、20 日（未來）都是 `aria-disabled="false"`；9 月補上的格子是 `"true"`；15 日的數字有 `bg-emerald-600`
-- 有紀錄的格子顯示運動名稱（背景色是運動顏色）、類型、筆記
+- 有一筆紀錄的格子顯示運動名稱（背景色是運動顏色）、類型、筆記
+- 同一天 4 筆：只顯示前 2 個運動標籤與「+2」，不顯示類型與筆記；剛好 2 筆時不顯示「+」
 - 掛載後才 seed 紀錄，格子會即時出現
 - 運動改名後，格子即時顯示新名稱
 - 點 10 日（過去）會出現「2026-10-10 運動紀錄」
@@ -1420,14 +1470,18 @@ afterEach(() => {
 
 #### 整合：`log-modal.test.ts`（freezeToday；先 `registerAs`）
 
-- 新增：眉標「TUESDAY · NEW ENTRY」、標題「2026-10-20 運動紀錄」；下拉選單預設是「桌球」、「練習」；按鈕是「儲存紀錄」，沒有「刪除這筆紀錄」
-- 選「其它」、寫筆記後儲存：寫入正確欄位，toast「已儲存 10/20 的紀錄」，emit `[[false]]`
-- 編輯：已有紀錄時眉標是「TUESDAY · EDIT」，表單帶入原值，按鈕是「更新紀錄」；儲存後呼叫 updateDoc
-- 紀錄使用的運動已不存在時，下拉選單顯示「其它」
-- 關閉後換一天打開，表單會重設成預設值，不會殘留上一天的筆記
-- 刪除：按「刪除這筆紀錄」後 `answerConfirm(true)` → request 的標題是「刪除紀錄」、內文是「確定要刪除 10/20 的紀錄嗎？」，文件被刪除，toast「已刪除 10/20 的紀錄」；`answerConfirm(false)` → 不呼叫 deleteDoc，視窗維持開啟
-- setDoc 失敗：toast「儲存失敗：quota exceeded」，不 emit
-- 處理中：按鈕 disabled，顯示「儲存中…」；完成後恢復
+- 當天沒有紀錄：直接是「TUESDAY · NEW ENTRY」、標題「2026-10-20 運動紀錄」；預設「桌球」、「練習」；按鈕「儲存紀錄」；沒有「← 返回列表」
+- 儲存後切到「TUESDAY · LOGS」列表、不 emit；按「＋ 新增一筆紀錄」表單重設；再存一筆後列表 2 筆、Firestore 有 2 份同日期的文件
+- 已有紀錄時打開是列表，依建立先後排序，不包含其他日期
+- 點第二筆進入「TUESDAY · EDIT」，帶入原值，按鈕「更新紀錄」；儲存只更新那一筆（`updateDoc` 1 次），回到列表
+- 「← 返回列表」不儲存
+- 紀錄使用的運動、類型已不存在時，列表顯示「其它」，編輯時下拉選單是 `other`
+- 關閉後換一天打開會重設畫面（「WEDNESDAY · NEW ENTRY」、筆記為空）
+- 在列表刪除：`answerConfirm(false)` 不刪；`answerConfirm(true)` 的 request 是「刪除紀錄」／「確定要刪除 10/20 的「桌球」紀錄嗎？」，只刪掉那一筆，toast「已刪除 10/20 的紀錄」，列表剩 1 筆，不 emit
+- 刪除最後一筆後顯示「這天還沒有紀錄」與「＋ 新增一筆紀錄」
+- deleteDoc 失敗：toast「刪除失敗：offline」，文件仍在
+- setDoc 失敗：toast「儲存失敗：quota exceeded」，停留在表單
+- 處理中：按鈕 disabled，顯示「儲存中…」；完成後回到列表
 - 點擊關閉按鈕會 emit `[[false]]`
 
 #### 整合：`settings.test.ts`（先 `registerAs`）
@@ -1438,20 +1492,20 @@ afterEach(() => {
 - 新增「羽球」：toast「已新增「羽球」」，出現在「桌球」和「其它」之間；新增「桌球」：toast「新增失敗：已經有同名的運動」
 - 改名：「桌球」改成「乒乓球」，toast「已更新「乒乓球」」
 - 改顏色：觸發 change 後 Firestore 的 color 更新
-- 刪除使用中的運動：`answerConfirm(true)` 回傳的 request 標題是「刪除運動」、內文包含「有 2 筆紀錄會改為「其它」」；確認後紀錄的 sportId 變成 `other`，運動文件被刪除
+- 刪除使用中的運動（同一天 2 筆）：`answerConfirm(true)` 回傳的 request 標題是「刪除運動」、內文包含「有 2 筆紀錄會改為「其它」」；確認後紀錄的 sportId 變成 `other`，運動文件被刪除
 - 取消刪除：`answerConfirm(false)` 後運動仍在，沒有呼叫 writeBatch
 - 類型清單：新增、改名、刪除流程同上
 - 修改密碼：四種前端驗證訊息；目前密碼錯誤時 toast「更新密碼失敗：Email 或密碼錯誤」；成功時 toast「密碼已更新」，欄位清空
 
-#### 整合：`stats.test.ts`（freezeToday；先 `registerAs`，seed 10/05、10/07、10/11、10/12、09/20 的紀錄）
+#### 整合：`stats.test.ts`（freezeToday；先 `registerAs` 並新增「羽球」，seed 10/05、10/07、10/11（兩筆）、10/12、09/20 的紀錄）
 
-- 預設是「週」，期間文字是「2026/10/5 – 2026/10/11」；運動天數 3、期間天數 7
-- 「上一期」→「2026/9/28 – 2026/10/4」；「下一期」兩次 →「2026/10/12 – 2026/10/18」
+- 預設是「週」，期間文字是「2026/10/5 – 2026/10/11」；運動次數 4、運動天數 3、期間天數 7
+- 「上一期」→「2026/9/28 – 2026/10/4」（沒有資料）；「下一期」兩次 →「2026/10/12 – 2026/10/18」，1 個日期
 - 切到「月」：期間文字是「2026 年 9 月」，只算到 09/20 那筆
-- 自訂：開始晚於結束時顯示「開始日期不能晚於結束日期」，列表為空
-- 依運動篩選、依類型篩選後，摘要和列表都跟著變
+- 自訂：切換後預設是上週（3 個日期）；開始晚於結束時顯示「開始日期不能晚於結束日期」，列表為空，期間天數顯示「—」
+- 依運動篩選、依類型篩選後，次數、天數與列表都跟著變
 - 「最常做的運動」顯示次數最多的運動；長條圖顯示 `N 次`
-- 列表依日期降冪；點某一列會打開該天的 LogModal
+- 列表依日期降冪分組，10/11 那一列裡有 2 筆並依建立先後；顯示「共 4 筆」；點某一列會打開該天的 LogModal
 - 沒有資料時顯示「這段期間沒有符合條件的紀錄」和「沒有資料」
 
 #### 整合：`navbar-and-session.test.ts`
@@ -1474,7 +1528,7 @@ afterEach(() => {
 - [ ] 未登入打開任何頁面都被導到登入頁；登入後回到原本要去的頁面
 - [ ] 可以自行註冊；註冊後運動清單是「桌球、其它」，類型清單是「練習、其它」
 - [ ] 月曆從週一開始；今天的日期數字以 emerald 圓底白字標示
-- [ ] 過去、今天、未來的日期都能點；同一天只有一筆紀錄，再點一次是編輯
+- [ ] 過去、今天、未來的日期都能點；同一天可以新增多筆，列表上可以刪除、點一筆可以編輯
 - [ ] 月曆標籤用運動的顏色，深淺顏色的文字都看得清楚
 - [ ] 「其它」不能刪除、不能改名，永遠排最後；運動的「其它」可以改顏色
 - [ ] 刪除使用中的運動或類型時，舊紀錄變成「其它」
@@ -1489,10 +1543,14 @@ afterEach(() => {
 
 ### 測試
 
-- [ ] `npm test` 全部通過，連續跑 3 次都穩定
+- [ ] `npm test` 全部通過，連續跑 3 次都穩定（目前是 136 個：`test/unit` 70 個〔utils 37、composables 33〕，`test/integration` 66 個）
 - [ ] 跑測試時沒有任何 Firebase 網路請求，也沒有 Vitest 的 unhandled error
 - [ ] 反向驗證，以下任一項故意改壞都要讓測試失敗：
-  - `sortCatalog` 不再把 `other` 排最後
+  - `removeItem` 改寫紀錄時用 `log.date` 而不是 `log.id`
+  - `logsOn` 同一天的排序顛倒
+  - 月曆的 `MAX_VISIBLE` 改大（不再出現「+N」）
+  - 統計頁的「運動天數」改成算筆數
+  - `sortCatalog` 不再把 `other` 排最後（要把 `a`、`b` 兩個 `other` 判斷都拿掉；只改其中一個時，排序結果可能碰巧不變）
   - `removeSport` 不改寫紀錄就直接刪除
   - `buildMonthGrid` 改回週日開始
   - `lastWeekRange` 回傳本週而不是上週
@@ -1508,12 +1566,16 @@ afterEach(() => {
 4. **註冊寫入一半**：預設清單一定要和 users 文件放在同一個 batch；就算還是失敗，`login()` 也要能補建。
 5. **刪除運動的順序**：先改紀錄、最後才刪運動；batch 超過 500 次寫入會失敗，要分批。
 6. **確認 dialog 的層級**：LogModal 裡面會打開確認 dialog，dialog 的 z-index 一定要高於 LogModal，否則會被蓋住。
-7. **LogModal 表單殘留**：每次打開都要重新初始化表單；清單還沒載入時，要等 `ready` 再初始化。
-8. **自訂顏色的文字對比**：運動顏色是使用者選的，月曆標籤的文字色一定要用 `readableTextColor` 算。
-9. **週的起點**：月曆和統計都是週一開始；`getDay()` 回傳 0 代表週日，換算時要用 `(getDay() + 6) % 7`。
-10. **Open redirect**：`redirect` query 一定要經過 `safeRedirect`。
-11. **SSR**：一定要關閉，否則 middleware 會在伺服器端誤判未登入。
-12. **測試的模組實例**：假後端的狀態一定要放在 `globalThis`。
-13. **測試的狀態重設**：用 `useState(key).value = 初始值`，不要用 `clearNuxtState()`；每個測試開始前先 `$dataSync.stop()`。
-14. **測試的導頁斷言**：元件內觸發的導頁要用 `vi.waitFor` 等待。
-15. **只假造 Date**：整合測試固定日期時用 `toFake: ['Date']`，否則 `vi.waitFor`、toast 的計時器和 Promise 都可能卡住。
+7. **LogModal 畫面殘留**：每次打開或換日期都要重設（有紀錄 → 列表，沒有 → 新增表單）；清單還沒載入時，要等 `ready` 再帶入表單預設值。
+8. **紀錄 ID 不是日期**：新紀錄用自動 ID，舊紀錄的 ID 剛好是日期。更新、刪除、刪除運動時改寫紀錄，一律用 `log.id` 組文件路徑；只要用日期組路徑，就會改到錯的文件或找不到文件。
+9. **自訂顏色的文字對比**：運動顏色是使用者選的，月曆標籤的文字色一定要用 `readableTextColor` 算。
+10. **週的起點**：月曆和統計都是週一開始；`getDay()` 回傳 0 代表週日，換算時要用 `(getDay() + 6) % 7`。
+11. **Open redirect**：`redirect` query 一定要經過 `safeRedirect`。
+12. **SSR**：一定要關閉，否則 middleware 會在伺服器端誤判未登入。
+13. **測試的模組實例**：假後端的狀態一定要放在 `globalThis`。
+14. **測試的狀態重設**：用 `useState(key).value = 初始值`，不要用 `clearNuxtState()`；每個測試開始前先 `$dataSync.stop()`。
+15. **測試的導頁斷言**：元件內觸發的導頁要用 `vi.waitFor` 等待。
+16. **只假造 Date**：整合測試固定日期時用 `toFake: ['Date']`，否則 `vi.waitFor`、toast 的計時器和 Promise 都可能卡住。
+17. **Vitest 模組快取**：`nuxt` project 一定要 `fsModuleCache: false`（§11.3），否則第二次執行起所有 Nuxt 測試都無法啟動。排查時記得 `node_modules/.vitest-cache` 也是快取，只清 `.nuxt`、`.vite` 不夠。
+18. **路由狀態跨測試保留**：測試之間 router 不會重設，`push` 到和目前相同的路徑不會觸發 middleware；導頁測試要選一個和前一個測試不同的目標。
+19. **可忽略的警告**：建置與測試時會出現 `[NUXT_B7027] The PostCSS plugin tailwindcss/nesting could not be loaded`，是 Nuxt 4.6 與 `@nuxtjs/tailwindcss` 的相容性警告；本專案沒有使用 CSS 巢狀語法，不影響結果。
