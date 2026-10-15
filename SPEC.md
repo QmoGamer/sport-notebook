@@ -1,6 +1,6 @@
 # 運動筆記本（sport-notebook）軟體設計規格書
 
-> 版本：v1.2 規格（2026-10-15），對應程式碼 v0.1.0 之後的「一天多筆紀錄」改版；由「群組預約系統（book-play-ball）v0.4.4」規格改寫而來
+> 版本：v1.3 規格（2026-10-15），對應程式碼 v0.2.0 之後（統計預設改為本週、本月）；由「群組預約系統（book-play-ball）v0.4.4」規格改寫而來
 > 讀者：負責從零實作本專案的 AI 開發代理
 
 ## 0. 如何使用這份文件
@@ -429,8 +429,8 @@ export interface CalendarCell { date: Date; key: string; day: number; inCurrentM
 export function buildMonthGrid(year: number, month: number): CalendarCell[]  // month 從 0 開始
 
 export function startOfWeek(date: Date): Date          // 該週週一的當地午夜（週日屬於前一個週一開始的那週）
-export function lastWeekRange(today: Date): DateRange  // 上週一 ~ 上週日
-export function lastMonthRange(today: Date): DateRange // 上個月 1 日 ~ 上個月最後一天
+export function thisWeekRange(today: Date): DateRange  // 本週一 ~ 本週日
+export function thisMonthRange(today: Date): DateRange // 本月 1 日 ~ 本月最後一天
 export function shiftRange(mode: 'week' | 'month', range: DateRange, delta: number): DateRange
 export function countDays(range: DateRange): number    // 含頭含尾的天數
 export function formatRangeLabel(mode: 'week' | 'month', range: DateRange): string
@@ -447,9 +447,9 @@ export function formatRangeLabel(mode: 'week' | 'month', range: DateRange): stri
 
 **期間函式範例（today = 2026-10-15，週四）：**
 - `startOfWeek` → 2026-10-12；傳入 2026-10-18（週日）也是 2026-10-12；傳入 2026-10-12（週一）也是 2026-10-12
-- `lastWeekRange` → `{ start: '2026-10-05', end: '2026-10-11' }`
-- `lastMonthRange` → `{ start: '2026-09-01', end: '2026-09-30' }`
-- 跨年：today = 2026-01-07 → `lastWeekRange` = `2025-12-29 ~ 2026-01-04`；`lastMonthRange` = `2025-12-01 ~ 2025-12-31`
+- `thisWeekRange` → `{ start: '2026-10-12', end: '2026-10-18' }`；today 是 2026-10-18（週日）或 2026-10-12（週一）時結果相同
+- `thisMonthRange` → `{ start: '2026-10-01', end: '2026-10-31' }`
+- 跨年：today = 2026-01-01 → `thisWeekRange` = `2025-12-29 ~ 2026-01-04`；`thisMonthRange` = `2026-01-01 ~ 2026-01-31`
 - `shiftRange('week', r, 1)`：start、end 各加 7 天
 - `shiftRange('month', r, -1)`：以 start 的年月往前一個月，回傳整個月；例如 `2026-03-01 ~ 2026-03-31` → `2026-02-01 ~ 2026-02-28`
 - `countDays({ start: '2026-10-05', end: '2026-10-11' })` → 7
@@ -1027,9 +1027,9 @@ Props：`{ kind: 'sport' | 'category' }`。依 kind 對應 `useCatalog` 的 spor
 **期間控制列**（卡片內）：
 - 模式切換（分段按鈕，選中的用 `bg-emerald-600 text-white`，按鈕加 `:aria-pressed`）：「週」、「月」、「自訂」。預設「週」。
 - 切換模式時，期間重設為該模式的預設值：
-  - 週 → `lastWeekRange(today)`（上週一 ~ 上週日）
-  - 月 → `lastMonthRange(today)`（上個月）
-  - 自訂 → `lastWeekRange(today)`
+  - 週 → `thisWeekRange(today)`（本週一 ~ 本週日，包含今天之後的日子）
+  - 月 → `thisMonthRange(today)`（本月）
+  - 自訂 → `thisWeekRange(today)`
 - 週、月模式：「上一期」按鈕（`aria-label="上一期"`）、期間文字 `formatRangeLabel(mode, range)`、「下一期」按鈕（`aria-label="下一期"`），用 `shiftRange` 切換。可以切到未來。
 - 自訂模式：「開始日期」`<input id="range-start" type="date">`、「結束日期」`<input id="range-end" type="date">`。開始晚於結束、或任一欄位被清空時，顯示 `role="alert"` 訊息「開始日期不能晚於結束日期」，下方統計全部以空資料呈現。
 - 篩選：「運動」`<select id="stats-sport">`，第一個選項「全部運動」（value `''`），其餘是 `sports`；「類型」`<select id="stats-category">`，第一個選項「全部類型」，其餘是 `categories`。預設都是全部。
@@ -1367,7 +1367,7 @@ afterEach(() => {
   - 2026/08 有 42 格，從 07-27 開始、到 09-06 結束
   - 每一格的 key、day 和 date 一致；每一列第一格都是週一
 - `startOfWeek`：週四、週日、週一都回到同一個週一
-- `lastWeekRange`、`lastMonthRange`：2026-10-15 與跨年的 2026-01-07
+- `thisWeekRange`、`thisMonthRange`：2026-10-15；今天是週日、週一時仍是同一週；跨年的 2026-01-01
 - `shiftRange`：週加減 7 天；月份往前跨年（2026-01 → 2025-12）、2 月天數正確
 - `countDays`、`formatRangeLabel`（含 en dash）
 
@@ -1497,15 +1497,15 @@ afterEach(() => {
 - 類型清單：新增、改名、刪除流程同上
 - 修改密碼：四種前端驗證訊息；目前密碼錯誤時 toast「更新密碼失敗：Email 或密碼錯誤」；成功時 toast「密碼已更新」，欄位清空
 
-#### 整合：`stats.test.ts`（freezeToday；先 `registerAs` 並新增「羽球」，seed 10/05、10/07、10/11（兩筆）、10/12、09/20 的紀錄）
+#### 整合：`stats.test.ts`（freezeToday，本週是 10/12 ~ 10/18；先 `registerAs` 並新增「羽球」，seed 10/12、10/14、10/18（兩筆）、10/19、09/20 的紀錄）
 
-- 預設是「週」，期間文字是「2026/10/5 – 2026/10/11」；運動次數 4、運動天數 3、期間天數 7
-- 「上一期」→「2026/9/28 – 2026/10/4」（沒有資料）；「下一期」兩次 →「2026/10/12 – 2026/10/18」，1 個日期
-- 切到「月」：期間文字是「2026 年 9 月」，只算到 09/20 那筆
-- 自訂：切換後預設是上週（3 個日期）；開始晚於結束時顯示「開始日期不能晚於結束日期」，列表為空，期間天數顯示「—」
+- 預設是「週」，期間文字是「2026/10/12 – 2026/10/18」；運動次數 4、運動天數 3、期間天數 7
+- 「上一期」→「2026/10/5 – 2026/10/11」（沒有資料）；「下一期」兩次 →「2026/10/19 – 2026/10/25」，1 個日期
+- 切到「月」：期間文字是「2026 年 10 月」，運動次數 5、4 個日期、期間天數 31；「上一期」→「2026 年 9 月」，只有 09/20 那筆
+- 自訂：切換後兩個日期欄位是 2026-10-12、2026-10-18（3 個日期）；開始晚於結束時顯示「開始日期不能晚於結束日期」，列表為空，期間天數顯示「—」
 - 依運動篩選、依類型篩選後，次數、天數與列表都跟著變
 - 「最常做的運動」顯示次數最多的運動；長條圖顯示 `N 次`
-- 列表依日期降冪分組，10/11 那一列裡有 2 筆並依建立先後；顯示「共 4 筆」；點某一列會打開該天的 LogModal
+- 列表依日期降冪分組（18、14、12），10/18 那一列裡有 2 筆並依建立先後；顯示「共 4 筆」；點某一列會打開該天的 LogModal
 - 沒有資料時顯示「這段期間沒有符合條件的紀錄」和「沒有資料」
 
 #### 整合：`navbar-and-session.test.ts`
@@ -1532,7 +1532,7 @@ afterEach(() => {
 - [ ] 月曆標籤用運動的顏色，深淺顏色的文字都看得清楚
 - [ ] 「其它」不能刪除、不能改名，永遠排最後；運動的「其它」可以改顏色
 - [ ] 刪除使用中的運動或類型時，舊紀錄變成「其它」
-- [ ] 統計頁預設上週一 ~ 上週日；切到月預設上個月；篩選與統計正確
+- [ ] 統計頁預設本週一 ~ 本週日；切到月預設本月；篩選與統計正確
 - [ ] 可以修改暱稱與密碼；改密碼後用新密碼可以登入
 - [ ] 兩個分頁登入同一個帳號，修改會即時同步
 - [ ] 另一個帳號完全看不到這個帳號的資料（用 Security Rules 驗證，不只是畫面）
@@ -1543,7 +1543,7 @@ afterEach(() => {
 
 ### 測試
 
-- [ ] `npm test` 全部通過，連續跑 3 次都穩定（目前是 136 個：`test/unit` 70 個〔utils 37、composables 33〕，`test/integration` 66 個）
+- [ ] `npm test` 全部通過，連續跑 3 次都穩定（目前是 137 個：`test/unit` 71 個〔utils 38、composables 33〕，`test/integration` 66 個）
 - [ ] 跑測試時沒有任何 Firebase 網路請求，也沒有 Vitest 的 unhandled error
 - [ ] 反向驗證，以下任一項故意改壞都要讓測試失敗：
   - `removeItem` 改寫紀錄時用 `log.date` 而不是 `log.id`
@@ -1553,7 +1553,7 @@ afterEach(() => {
   - `sortCatalog` 不再把 `other` 排最後（要把 `a`、`b` 兩個 `other` 判斷都拿掉；只改其中一個時，排序結果可能碰巧不變）
   - `removeSport` 不改寫紀錄就直接刪除
   - `buildMonthGrid` 改回週日開始
-  - `lastWeekRange` 回傳本週而不是上週
+  - `thisWeekRange` 回傳上週而不是本週
   - `safeRedirect` 接受 `//evil.com`
 
 ---

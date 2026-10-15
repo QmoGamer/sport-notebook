@@ -15,7 +15,7 @@ const { sports, categories, resolveSport, resolveCategory } = useCatalog()
 
 const today = new Date()
 const mode = ref<PeriodMode>('week')
-const range = ref<DateRange>(lastWeekRange(today))
+const range = ref<DateRange>(thisWeekRange(today))
 const sportId = ref('')
 const categoryId = ref('')
 
@@ -24,7 +24,7 @@ const activeDateKey = ref<string | null>(null)
 
 function setMode(next: PeriodMode) {
   mode.value = next
-  range.value = next === 'month' ? lastMonthRange(today) : lastWeekRange(today)
+  range.value = next === 'month' ? thisMonthRange(today) : thisWeekRange(today)
 }
 
 function shift(delta: number) {

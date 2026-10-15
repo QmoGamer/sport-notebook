@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   WEEKDAYS, addDays, buildMonthGrid, countDays, formatDateKey, formatDateLabel, formatRangeLabel,
-  lastMonthRange, lastWeekRange, pad2, parseDateKey, shiftRange, startOfWeek, weekdayLabel,
+  pad2, parseDateKey, shiftRange, startOfWeek, thisMonthRange, thisWeekRange, weekdayLabel,
 } from '~/utils/date'
 
 describe('pad2', () => {
@@ -102,16 +102,21 @@ describe('期間函式', () => {
     }
   })
 
-  it('lastWeekRange、lastMonthRange 以 2026-10-15 計算', () => {
+  it('thisWeekRange、thisMonthRange 以 2026-10-15 計算', () => {
     const today = new Date(2026, 9, 15)
-    expect(lastWeekRange(today)).toEqual({ start: '2026-10-05', end: '2026-10-11' })
-    expect(lastMonthRange(today)).toEqual({ start: '2026-09-01', end: '2026-09-30' })
+    expect(thisWeekRange(today)).toEqual({ start: '2026-10-12', end: '2026-10-18' })
+    expect(thisMonthRange(today)).toEqual({ start: '2026-10-01', end: '2026-10-31' })
   })
 
-  it('跨年：2026-01-07 的上週與上個月', () => {
-    const today = new Date(2026, 0, 7)
-    expect(lastWeekRange(today)).toEqual({ start: '2025-12-29', end: '2026-01-04' })
-    expect(lastMonthRange(today)).toEqual({ start: '2025-12-01', end: '2025-12-31' })
+  it('今天是週日或週一時，本週仍是週一到週日', () => {
+    expect(thisWeekRange(new Date(2026, 9, 18))).toEqual({ start: '2026-10-12', end: '2026-10-18' })
+    expect(thisWeekRange(new Date(2026, 9, 12))).toEqual({ start: '2026-10-12', end: '2026-10-18' })
+  })
+
+  it('跨年：2026-01-01 的本週與本月', () => {
+    const today = new Date(2026, 0, 1)
+    expect(thisWeekRange(today)).toEqual({ start: '2025-12-29', end: '2026-01-04' })
+    expect(thisMonthRange(today)).toEqual({ start: '2026-01-01', end: '2026-01-31' })
   })
 
   it('shiftRange：週加減 7 天；月份往前跨年、2 月天數正確', () => {

@@ -76,14 +76,14 @@ function monthRange(year: number, month: number): DateRange {
   }
 }
 
-/** 上週一 ~ 上週日 */
-export function lastWeekRange(today: Date): DateRange {
-  return weekRangeFrom(addDays(startOfWeek(today), -7))
+/** 本週一 ~ 本週日 */
+export function thisWeekRange(today: Date): DateRange {
+  return weekRangeFrom(startOfWeek(today))
 }
 
-/** 上個月 1 日 ~ 上個月最後一天 */
-export function lastMonthRange(today: Date): DateRange {
-  return monthRange(today.getFullYear(), today.getMonth() - 1)
+/** 本月 1 日 ~ 本月最後一天 */
+export function thisMonthRange(today: Date): DateRange {
+  return monthRange(today.getFullYear(), today.getMonth())
 }
 
 export function shiftRange(mode: 'week' | 'month', range: DateRange, delta: number): DateRange {
